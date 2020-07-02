@@ -95,7 +95,7 @@ defmodule Conform.ReleasePlugin do
   def after_package(_release), do: nil
   def after_cleanup(_args), do: nil
 
-  defp debug(message), do: apply(Mix.Releases.Logger, :debug, ["conform: " <> message])
+  defp debug(message), do: apply(Conform.Logger, :debug, ["conform: " <> message])
 
   defp add_archive(conform_overlays, release, schema_src) do
     # generate archive
@@ -150,13 +150,31 @@ defmodule Conform.ReleasePlugin do
       end
     end)
 
-    {:ok, tmp_dir} = Mix.Releases.Utils.insecure_mkdir_temp
+    {:ok, tmp_dir} = insecure_mkdir_temp()
     schema = Conform.Schema.coalesce(schemas)
 
     tmp_schema_src = Path.join(tmp_dir, "#{release.name}.schema.exs")
     Conform.Schema.write(schema, tmp_schema_src)
 
     tmp_schema_src
+  end
+
+  defp insecure_mkdir_temp() do
+    :rand.seed(:exs64)
+    unique_num = :rand.uniform(1_000_000_000)
+    tmpdir_path =
+      case :erlang.system_info(:system_architecture) do
+        'win32' ->
+          Path.join(["./tmp", ".tmp_dir#{unique_num}"])
+        _ ->
+          Path.join(["/tmp", ".tmp_dir#{unique_num}"])
+      end
+    case File.mkdir_p(tmpdir_path) do
+      :ok ->
+        {:ok, tmpdir_path}
+      {:error, reason} ->
+        {:error, {:mkdir_temp, :file, reason}}
+    end
   end
 
   ## Concatenantes all conf files into a single umbrella conf file
@@ -176,7 +194,7 @@ defmodule Conform.ReleasePlugin do
       end
     end)
 
-    {:ok, tmp_dir} = Mix.Releases.Utils.insecure_mkdir_temp
+    {:ok, tmp_dir} = insecure_mkdir_temp()
     conf = Enum.join(conf_files, "\n")
 
     tmp_conf_src = Path.join(tmp_dir, "#{release.name}.conf")
